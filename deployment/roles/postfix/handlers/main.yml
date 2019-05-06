@@ -1,0 +1,22 @@
+- name: 'Restart MTA'
+  become: true
+  service:
+    name: 'postfix'
+    state: 'restarted'
+
+- name: 'Restart IMAP server'
+  become: true
+  service:
+    name: 'dovecot'
+    state: 'restarted'
+
+- name: 'Restart fail2ban'
+  become: true
+  service:
+    name: 'fail2ban'
+    state: 'restarted'
+
+- name: 'Reload systemd'
+  become: true
+  systemd:
+    daemon_reload: true

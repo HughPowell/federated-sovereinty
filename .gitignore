@@ -1,0 +1,4 @@
+deployment/host_vars
+deployment/passphrase.gpg
+deployment/playbook.yml
+deployment/playbook.retry

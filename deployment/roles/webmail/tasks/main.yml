@@ -1,0 +1,59 @@
+- name: 'Install webmail'
+  become: true
+  apt:
+    name: '{{ item }}'
+    update_cache: true
+    state: 'latest'
+  with_items:
+    - 'roundcube'
+    - 'roundcube-plugins'
+    - 'roundcube-plugins-extra'
+    - 'php-net-sieve'
+
+- name: 'Create directory'
+  become: true
+  file:
+    path: '/var/www/{{ mail_domain }}'
+    state: 'directory'
+
+- name: 'Copy webmail site configuration'
+  become: true
+  template:
+    src: '{{ item }}.conf.j2'
+    dest: '/etc/apache2/sites-available/{{ mail_domain }}-{{ item }}.conf'
+  with_items:
+    - 'http'
+    - 'https'
+
+- name: 'Enable webmail domain'
+  become: true
+  command: 'a2ensite {{ mail_domain }}-{{ item }}'
+  args:
+    creates: '/etc/apache2/sites-enabled/{{ mail_domain }}-{{ item }}.conf'
+  with_items:
+    - 'http'
+    - 'https'
+  notify: 'Restart Apache'
+
+- name: 'Copy webmail configuration'
+  become: true
+  copy:
+    src: 'config.inc.php'
+    dest: '/etc/roundcube/config.inc.php'
+    owner: 'root'
+    group: 'www-data'
+  notify: 'Restart Apache'
+
+- name: 'Copy sieve configuration'
+  become: true
+  copy:
+    src: 'managesieve'
+    dest: '/etc/roundcube/plugins/managesieve/config.inc.php'
+  notify: 'Restart Apache'
+
+- name: 'Copy password configuration'
+  become: true
+  template:
+    src: 'password.j2'
+    dest: '/etc/roundcube/plugins/password/config.inc.php'
+  notify: 'Restart Apache'

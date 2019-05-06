@@ -1,0 +1,7 @@
+<VirtualHost *:443>
+ ServerName {{ mail_domain }}
+ DocumentRoot /var/lib/roundcube
+ SSLEngine on
+ SSLCertificateFile /etc/letsencrypt/live/{{ mail_domain }}/fullchain.pem
+ SSLCertificateKeyFile /etc/letsencrypt/live/{{ mail_domain }}/privkey.pem
+</VirtualHost>

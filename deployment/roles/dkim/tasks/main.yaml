@@ -1,0 +1,30 @@
+- name: 'Create domain keys directory'
+  become: true
+  file:
+    dest: '/var/lib/rspamd/dkim'
+    state: 'directory'
+    owner: '_rspamd'
+    group: '_rspamd'
+
+- name: 'Set the selectors map'
+  become: true
+  copy:
+    src: 'dkim_signing.conf'
+    dest: '/etc/rspamd/local.d/dkim_signing.conf'
+
+- name: 'Copy over the dkim key'
+  become: true
+  template:
+    src: 'dkim_selectors.map.j2'
+    dest: '/etc/rspamd/dkim_selectors.map'
+  notify: 'Restart rspamd'
+
+- name: 'Copy over the private key'
+  become: true
+  template:
+    src: 'key.j2'
+    dest: '/var/lib/rspamd/dkim/{{ domain }}.{{ dkim_selector }}.key'
+    owner: '_rspamd'
+    mode: 'u=r,go=' 
+  notify: 'Restart rspamd'
+

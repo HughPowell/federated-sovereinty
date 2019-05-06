@@ -1,0 +1,29 @@
+- name: 'Install web server'
+  become: true
+  apt:
+    name: '{{ item }}'
+    update_cache: true
+    state: 'latest'
+  with_items:
+    - 'apache2'
+    - 'php7.0'
+
+- name: 'Enable SSL and Rewrite Apache mods'
+  become: true
+  apache2_module:
+    name: '{{ item }}'
+    state: 'present'
+  with_items:
+    - 'ssl'
+    - 'rewrite'
+  notify: 'Restart Apache'
+
+- name: 'Open HTTP(S) ports in firewall'
+  become: true
+  lineinfile:
+    destfile: '/etc/shorewall/rules-all'
+    insertbefore: "^# Permit all ICMP traffic FROM the firewall TO the net zone"
+    line: "{{ item }}(ACCEPT)\tnet\t\t$FW"
+  with_items:
+    - 'HTTP'
+    - 'HTTPS'

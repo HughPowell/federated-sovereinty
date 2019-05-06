@@ -1,0 +1,78 @@
+- name: 'Install IMAP server'
+  become: true
+  apt:
+    name: "{{ item }}"
+    update_cache: true
+    state: 'latest'
+  with_items:
+    - 'dovecot-mysql'
+    - 'dovecot-imapd'
+    - 'dovecot-managesieved'
+    - 'dovecot-lmtpd'
+
+- name: 'Create vmail group'
+  become: true
+  group:
+    name: 'vmail'
+    state: 'present'
+
+- name: 'Create vmail user'
+  become: true
+  user:
+    name: 'vmail'
+    group: 'vmail'
+    home: '/var/vmail/'
+
+- name: 'Set permissions on the vmail folder'
+  become: true
+  file:
+    path: '/var/vmail/'
+    owner: 'vmail'
+    group: 'vmail'
+    state: 'directory'
+
+- name: 'Copy over IMAP server configuration'
+  become: true
+  copy:
+    src: '{{ item }}'
+    dest: '/etc/dovecot/conf.d/{{ item }}'
+  with_items:
+    - '10-auth.conf'
+    - 'auth-sql.conf.ext'
+    - '10-mail.conf'
+    - '15-mailboxes.conf'
+  notify: 'Restart IMAP server'
+
+- name: 'Copy over templated IMAP server configuration'
+  become: true
+  template:
+    src: '10-ssl.conf.j2'
+    dest: '/etc/dovecot/conf.d/10-ssl.conf'
+  notify: 'Restart IMAP server'
+
+- name: 'Copy over IMAP server to database connection configuration'
+  become: true
+  template:
+    src: 'dovecot-sql.conf.ext.j2'
+    dest: '/etc/dovecot/dovecot-sql.conf.ext'
+    owner: 'root'
+    group: 'root'
+    mode: 'go='
+  notify: 'Restart IMAP server'
+
+- name: 'Restart IMAP server when certificate updated'
+  become: true
+  lineinfile:
+    destfile: '/usr/local/bin/certbot-post-hook'
+    line: 'service dovecot restart 2>/dev/null'
+  notify: 'Reload systemd'
+
+- name: 'Open IMAP(S) ports in firewall'
+  become: true
+  lineinfile:
+    destfile: '/etc/shorewall/rules-all'
+    insertbefore: "^# Permit all ICMP traffic FROM the firewall TO the net zone"
+    line: "{{ item }}(ACCEPT)\tnet\t\t$FW"
+  with_items:
+    - 'IMAP'
+    - 'IMAPS'

@@ -1,0 +1,5 @@
+- name: 'Restart Apache'
+  become: true
+  service:
+    name: 'apache2'
+    state: 'restarted'

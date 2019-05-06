@@ -1,0 +1,118 @@
+- name: 'Add repository key for spam filter'
+  become: true
+  apt_key:
+    url: 'https://rspamd.com/apt-stable/gpg.key'
+    state: 'present'
+
+- name: 'Add repository for spam filter'
+  become: true
+  apt_repository:
+    repo: 'deb http://rspamd.com/apt-stable/ stretch main'
+    state: 'present'
+
+- name: 'Install spam filter'
+  become: true
+  apt:
+    name: 'rspamd'
+    update_cache: true
+    state: 'latest'
+
+- name: 'Tell MTA to send mail through spam filter'
+  become: true
+  lineinfile:
+    dest: '/etc/postfix/main.cf'
+    regexp: '{{ item.regexp }}'
+    line: '{{ item.line }}'
+  with_items:
+    - { regexp: '^smtpd_milters = inet:127.0.0.1:11332',
+        line: 'smtpd_milters = inet:127.0.0.1:11332' }
+    - { regexp: '^non_smtpd_milters = inet:127.0.0.1:11332',
+        line: 'non_smtpd_milters = inet:127.0.0.1:11332' }
+    - { regexp: 'milter_protocol = 6',
+        line: 'milter_protocol = 6' }
+    - { regexp: 'milter_mail_macros = "i {mail_addr} {client_addr} {client_name} {auth_authen}"',
+        line: 'milter_mail_macros = "i {mail_addr} {client_addr} {client_name} {auth_authen}"' }
+
+- name: 'Have spam filter add extended headers'
+  become: true
+  copy:
+    src: 'milter_headers.conf'
+    dest: '/etc/rspamd/override.d/milter_headers.conf'
+
+- name: 'Create sieve after directory'
+  become: true
+  file:
+    path: '/etc/dovecot/sieve-after'
+    state: 'directory'
+
+- name: 'Copy send spam to Junk sieve script across'
+  become: true
+  copy:
+    src: 'spam-to-folder.sieve'
+    dest: '/etc/dovecot/sieve-after/spam-to-folder.sieve'
+  register: spam_to_folder
+
+- name: 'Compile sieve scripts'
+  become: true
+  when: spam_to_folder.changed
+  command: 'sievec /etc/dovecot/sieve-after/spam-to-folder.sieve'
+  notify: 'Restart spam filter'
+
+- name: 'Configure the spam filter'
+  become: true
+  copy:
+    src: '{{ item }}'
+    dest: '/etc/dovecot/conf.d/{{ item }}'
+  with_items:
+    - '90-sieve.conf'
+    - '20-imap.conf'
+  register: configured_spam_filter
+
+- name: 'Restart IMAP server'
+  become: true
+  when: configured_spam_filter.changed
+  service:
+    name: 'dovecot'
+    state: 'restarted'
+
+- name: 'Create sieve script directory'
+  become: true
+  file:
+    path: '/etc/dovecot/sieve'
+    state: 'directory'
+
+- name: 'Copy across ham and spam learning sieve scripts'
+  become: true
+  copy:
+    src: '../files/{{ item }}.sieve'
+    dest: '/etc/dovecot/sieve/{{ item }}.sieve'
+    mode: 'u=rw,go='
+    owner: 'vmail'
+    group: 'vmail'
+  with_items:
+    - 'learn-spam'
+    - 'learn-ham'
+  register: learning_sieve_scripts
+
+- name: 'Compile the learning sieve scripts'
+  become: true
+  when: learning_sieve_scripts.changed
+  command: 'sievec /etc/dovecot/sieve/{{ item }}.sieve'
+  with_items:
+    - 'learn-spam'
+    - 'learn-ham'
+  register: 'Restart IMAP server'
+    
+- name: 'Copy across ham and spam learning spam filter scripts'
+  become: true
+  copy:
+    src: '../files/{{ item }}'
+    dest: '/etc/dovecot/sieve/{{ item }}'
+    mode: 'u=rwx,go='
+    owner: 'vmail'
+    group: 'vmail'
+  with_items:
+    - 'rspamd-learn-spam.sh'
+    - 'rspamd-learn-ham.sh'
+  register: 'Restart IMAP server'
+

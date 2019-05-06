@@ -1,0 +1,31 @@
+#!/usr/bin/expect -f
+
+#exp_internal 1
+
+set timeout -1
+
+set IP_ADDRESS [lindex $argv 0]
+set KNOWN_HOSTS [lindex $argv 1]
+set ROOT_PASSWORD [lindex $argv 2]
+
+spawn ssh -o UserKnownHostsFile=$KNOWN_HOSTS root@$IP_ADDRESS
+
+expect {
+  "*Are you sure you want to continue connecting (yes/no)?" { 
+    #send "yes\r"; exp_continue
+    interact {
+      "yes\r" {
+        send "yes\r" ; exp_continue
+      }
+    }
+  }
+  "Permission denied, please try again." { exit 0 }
+  "root@$IP_ADDRESS's password:" {
+    send "$ROOT_PASSWORD\r" ; exp_continue
+  }
+  "*:~#" {
+    send "exit\r"; exit 0;
+  }
+}
+
+exit 1

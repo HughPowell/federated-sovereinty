@@ -1,0 +1,5 @@
+- name: 'Restart rspamd'
+  become: true
+  service:
+    name: 'rspamd'
+    state: 'restarted'

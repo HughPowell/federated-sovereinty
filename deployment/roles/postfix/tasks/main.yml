@@ -1,0 +1,128 @@
+- name: 'Install SMTP MTA'
+  become: true
+  apt:
+    name: '{{ item }}'
+    update_cache: true
+    state: 'latest'
+  with_items:
+    - 'postfix'
+    - 'postfix-mysql'
+
+- name: 'Copy database mappings'
+  become: true
+  template:
+    src: 'mysql-virtual-{{ item }}.cf.j2'
+    dest: '/etc/postfix/mysql-virtual-{{ item }}.cf'
+    group: 'postfix'
+    mode: 'u=rw,g=r,o='
+  with_items:
+    - 'mailbox-domains'
+    - 'mailbox-maps'
+    - 'alias-maps'
+
+- name: 'Enable database mappings'
+  become: true
+  lineinfile:
+    dest: '/etc/postfix/main.cf'
+    regexp: '{{ item }}'
+    line: '{{ item }}'
+    state: 'present'
+  with_items:
+    - 'virtual_mailbox_domains = mysql:/etc/postfix/mysql-virtual-mailbox-domains.cf'
+    - 'virtual_mailbox_maps = mysql:/etc/postfix/mysql-virtual-mailbox-maps.cf'
+    - 'virtual_alias_maps = mysql:/etc/postfix/mysql-virtual-alias-maps.cf'
+  notify: 'Restart MTA'
+
+- name: 'Use IMAP server for authentication'
+  become: true
+  lineinfile:
+    dest: '/etc/postfix/main.cf'
+    regexp: '{{ item }}'
+    line: '{{ item }}'
+    state: 'present'
+  with_items:
+    - 'smtpd_tls_mandatory_protocols = !SSLv2,!SSLv3'
+    - 'smtpd_sasl_type = dovecot'
+    - 'smtpd_sasl_path = private/auth'
+    - 'smtpd_sasl_auth_enable = yes'
+  notify: 'Restart MTA'
+
+- name: 'Enable encryption'
+  become: true
+  lineinfile:
+    dest: '/etc/postfix/main.cf'
+    regexp: '{{ item }}'
+    line: '{{ item }}'
+    state: 'present'
+  with_items:
+    - 'smtpd_tls_security_level = may'
+    - 'smtpd_tls_auth_only = yes'
+  notify: 'Restart MTA'
+
+- name: 'Set certificate files'
+  become: true
+  lineinfile:
+    dest: '/etc/postfix/main.cf'
+    regexp: '^smtpd_tls_{{ item.file_type }}_file'
+    line: 'smtpd_tls_{{ item.file_type }}_file = /etc/letsencrypt/live/{{ mail_domain }}/{{ item.file_name }}.pem'
+    state: 'present'
+  with_items:
+    - { file_type: 'cert', file_name: 'fullchain' }
+    - { file_type: 'key', file_name: 'privkey' }
+  notify: 'Restart MTA'
+
+- name: 'Allow MTA to connect to LMTP'
+  become: true
+  copy:
+    src: '10-master.conf'
+    dest: '/etc/dovecot/conf.d/10-master.conf'
+  notify: 'Restart IMAP server'
+
+- name: 'Allow MTA to check sender address'
+  become: true
+  template:
+    src: 'mysql-email2email.cf.j2'
+    dest: '/etc/postfix/mysql-email2email.cf'
+    group: 'postfix'
+    mode: 'u=rw,g=r,o='
+
+- name: 'Allow clients to send over the submission port'
+  become: true
+  copy:
+    src: 'master.cf'
+    dest: '/etc/postfix/master.cf'
+  notify: 'Restart MTA'
+
+- name: 'Tell the IMAP server where to listen for LMTP connections'
+  become: true
+  copy:
+    src: '15-master.conf'
+    dest: '/etc/dovecot/conf.d/15-master.conf'
+  notify: 'Restart IMAP server'
+
+- name: 'Tell fail2ban about ... lost connection after AUTH ...'
+  become: true
+  copy:
+    src: 'postfix-ispmail.conf-{{ item }}'
+    dest: '/etc/fail2ban/{{ item }}.d/postfix-ispmail.conf'
+  with_items:
+    - 'filter'
+    - 'jail'
+  notify: 'Restart fail2ban'
+
+- name: 'Restart postfix when certificate updated'
+  become: true
+  lineinfile:
+    destfile: '/usr/local/bin/certbot-post-hook'
+    line: 'service postfix restart 2>/dev/null' 
+  notify: 'Reload systemd'
+
+- name: 'Open SMTP ports in firewall'
+  become: true
+  lineinfile:
+    destfile: '/etc/shorewall/rules-all'
+    insertbefore: "^# Permit all ICMP traffic FROM the firewall TO the net zone"
+    line: '{{ item }}'
+  with_items:
+    - "SMTP(ACCEPT)\tnet\t\t$FW"
+    - "Submission(ACCEPT)\tnet\t$FW"

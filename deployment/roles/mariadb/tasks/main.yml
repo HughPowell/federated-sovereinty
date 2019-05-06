@@ -1,0 +1,13 @@
+- name: 'Install MariaDB Server'
+  become: true
+  apt:
+    name: 'mariadb-server'
+    update-cache: true
+    state: 'latest'
+
+- name: 'Install database python client'
+  become: true
+  apt:
+    name: 'python3-mysqldb'
+    update-cache: true
+    state: 'latest'

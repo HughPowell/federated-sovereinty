@@ -1,0 +1,4 @@
+[postfix-ispmail]
+logpath = %(syslog_mail)s
+enabled = true
+port = smtp,submission

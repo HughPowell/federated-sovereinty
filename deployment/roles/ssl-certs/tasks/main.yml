@@ -1,0 +1,27 @@
+- name: 'Install openssl'
+  become: true
+  apt:
+    name: 'openssl'
+    update_cache: true
+    state: 'latest'
+
+
+- name: 'Create directory for certificates'
+  become: true
+  file:
+    path: '/etc/letsencrypt/live/{{ mail_domain }}'
+    state: 'directory'
+
+- name: 'Generate certificates'
+  become: true
+  command: 'openssl req -newkey rsa:4096 -nodes -sha512 -x509 -days 3650 -nodes -out /etc/letsencrypt/live/{{ mail_domain }}/fullchain.pem -keyout /etc/letsencrypt/live/{{ mail_domain }}/privkey.pem -subj "/CN={{ mail_domain }}"'
+  args:
+    creates: '/etc/letsencrypt/live/{{ mail_domain }}/privkey.pem'
+
+- name: 'Copy automatic renew config'
+  become: true
+  copy:
+    src: 'certbot-post-hook'
+    dest: '/usr/local/bin/certbot-post-hook'
+    force: false
+    mode: 'u=x'

@@ -1,0 +1,81 @@
+- name: 'Install unattended-upgrades'
+  become: true
+  apt:
+    name: 'unattended-upgrades'
+    update_cache: true
+    state: 'latest'
+
+- name: 'Configure unattended-upgrades'
+  become: true
+  copy:
+    src: '50unattended-upgrades'
+    dest: '/etc/apt/apt.conf.d/50unattended-upgrades'
+
+- name: 'Install firewall'
+  become: true
+  apt:
+    name: 'shorewall'
+    update_cache: true
+    state: 'latest'
+
+- name: 'Get network interface name'
+  shell: "ip route ls | grep 'default via' | awk -F ' ' '{print $5}'"
+  register: network_interface
+  changed_when: false
+
+- name: "Configure Shorewall interfaces"
+  become: true
+  template:
+    src: 'interfaces.j2'
+    dest: '/etc/shorewall/interfaces'
+  notify: 'Restart Shorewall'
+
+- name: 'Configure Shorewall policy and zones'
+  become: true
+  copy:
+    src: '{{ item }}'
+    dest: '/etc/shorewall/{{ item }}'
+    force: false
+  with_items:
+    - 'policy'
+    - 'zones'
+
+- name: 'Take copies of Shorewall rules file'
+  become: true
+  copy:
+    src: 'rules'
+    dest: '/etc/shorewall/{{ item }}'
+    force: false
+  with_items:
+    - 'rules-all'
+    - 'rules-ssh'
+
+- name: 'Configure Shorewall for SSH'
+  become: true
+  file:
+    src: '/etc/shorewall/rules-ssh'
+    dest: '/etc/shorewall/rules'
+    state: 'link'
+
+- name: 'Open the SSH port'
+  become: true
+  lineinfile:
+    dest: '/etc/shorewall/rules'
+    insertbefore: '^# Permit all ICMP traffic FROM the firewall TO the net zone'
+    line: "SSH(ACCEPT)\tnet\t\t$FW"
+    state: 'present'
+  notify: 'Restart Shorewall'
+
+- name: 'Install fail2ban'
+  become: true
+  apt:
+    name: 'fail2ban'
+    update_cache: true
+    state: 'latest'
+
+- name: 'Install CA certificates'
+  become: true
+  apt:
+    name: 'ca-certificates'
+    update_cache: true
+    state: 'latest'

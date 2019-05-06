@@ -1,0 +1,25 @@
+# Secure SSH
+
+- name: 'Upgrade all installed packages'
+  become: true
+  apt:
+    update_cache: true
+    upgrade: 'dist'
+
+- name: 'Create SSH key pair'
+  local_action: 'command /usr/bin/ssh-keygen -b 4096 -t rsa -q -f "{{ playbook_dir }}/host_vars/{{ inventory_hostname }}-files/id_rsa" -N ""'
+  args:
+    creates: '{{ playbook_dir }}/host_vars/{{ inventory_hostname }}-files/id_rsa'
+
+- name: 'Copy public key to server'
+  authorized_key:
+    user: '{{ user_name }}'
+    state: 'present'
+    key: '{{ lookup("file", "{{ playbook_dir }}/host_vars/{{ inventory_hostname }}-files/id_rsa.pub") }}'
+
+- name: 'Enable only key based logins for SSH'
+  become: true
+  copy:
+    src: 'sshd_config'
+    dest: '/etc/ssh/sshd_config'
+  notify: 'Restart SSH'

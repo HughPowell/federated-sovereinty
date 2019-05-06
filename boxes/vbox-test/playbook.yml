@@ -1,0 +1,13 @@
+- hosts: application
+  roles:
+    - secure-user
+    - base
+    - mariadb
+    - mailserver-db
+    - webserver
+    - ssl-certs
+    - dovecot
+    - postfix
+    - sieve
+    - dkim
+    - webmail

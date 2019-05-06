@@ -1,0 +1,35 @@
+- name: 'Determine if the required tables exist'
+  become: true
+  command: 'mariadb -N -B -e "use mailserver; select * from {{ item }};"'
+  with_items:
+    - 'virtual_domains'
+    - 'virtual_users'
+    - 'virtual_aliases'
+  register: 'tables'
+  changed_when: false
+  failed_when: 'tables.rc > 1'
+
+- name: 'Copy across the database structure'
+  when: 'item.rc == 1'
+  copy:
+    src: '{{ item.item }}.schema.sql'
+    dest: '/tmp/{{ item.item }}.schema.sql'
+  with_items: '{{ tables.results }}'
+
+- name: 'Import database structure'
+  become: true
+  when: 'item.rc == 1'
+  mysql_db:
+    name: 'mailserver'
+    target: '/tmp/{{ item.item }}.schema.sql'
+    state: 'import'
+  with_items: '{{ tables.results }}'
+
+- name: 'Create database mailuser'
+  become: true
+  mysql_user:
+    name: 'mailuser'
+    password: "{{ mailuser_password }}"
+    priv: 'mailserver.*:SELECT'
+    state: 'present'
+

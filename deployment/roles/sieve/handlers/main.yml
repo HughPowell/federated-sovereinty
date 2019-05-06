@@ -1,0 +1,11 @@
+- name: 'Restart IMAP server'
+  become: true
+  service:
+    name: 'dovecot'
+    state: 'restarted'
+
+- name: 'Restart spam filter'
+  become: true
+  service:
+    name: 'rspamd'
+    state: 'restarted'

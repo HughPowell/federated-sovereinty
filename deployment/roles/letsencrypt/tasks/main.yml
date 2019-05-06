@@ -1,0 +1,46 @@
+- name: 'Install certbot'
+  become: true
+  apt:
+    name: 'certbot'
+    update_cache: true
+    state: 'latest'
+
+- name: 'Copy mail domain website config'
+  become: true
+  template:
+    src: 'http.conf.js'
+    dest: '/etc/apache2/sites-available/{{ mail_domain }}-http.conf'
+    force: false
+  register: new_cert_required
+
+- name: 'Enable website'
+  become: true
+  when: new_cert_required.changed
+  command: 'a2ensite {{ mail_domain }}-http'
+
+- name: 'Restart Apache'
+  become: true
+  when: new_cert_required.changed
+  service:
+    name: 'apache2'
+    state: 'restarted'
+
+- name: 'Get certificate'
+  become: true
+  when: new_cert_required.changed
+  command: 'certbot certonly --webroot --webroot-path /var/www/{{ mail_domain }} --domains {{ mail_domain }} --non-interactive --agree-tos --email {{ cert_email_address }}'
+
+- name: 'Copy automatic renew config'
+  become: true
+  copy:
+    src: 'certbot-post-hook'
+    dest: '/usr/local/bin/certbot-post-hook'
+    force: false
+    mode: 'u=x'
+
+- name: 'Copy systemd config'
+  become: true
+  copy:
+    src: 'certbot.service'
+    dest: '/lib/systemd/system/certbot.service'
+  notify: 'Reload systemd'

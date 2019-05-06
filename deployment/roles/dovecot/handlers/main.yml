@@ -1,0 +1,12 @@
+- name: 'Restart IMAP server'
+  become: true
+  service:
+    name: 'dovecot'
+    state: 'restarted'
+
+- name: 'Reload systemd'
+  become: true
+  systemd:
+    name: 'dovecot'
+    daemon_reload: true
+    state: 'reloaded'
